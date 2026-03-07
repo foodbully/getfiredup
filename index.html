@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canadian Retirement Planner</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                    </svg>
+                    <h1>Canadian Retirement Planner</h1>
+                </div>
+                <p class="subtitle">Visualize your path to financial independence</p>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- INPUT SECTION -->
+            <section class="panel input-panel">
+                <h2>Your Details</h2>
+
+                <div class="form-group">
+                    <label for="currentAge">Current Age</label>
+                    <input type="number" id="currentAge" value="35" min="18" max="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="retirementAge">Planned Retirement Age <span id="retireAgeError"
+                            class="input-error hidden"></span></label>
+                    <input type="number" id="retirementAge" value="65" min="18" max="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="lifeExpectancy">Life Expectancy <span id="lifeExpError"
+                            class="input-error hidden"></span></label>
+                    <input type="number" id="lifeExpectancy" value="90" min="50" max="120">
+                </div>
+
+                <div class="divider"></div>
+                <h2>Current Balances</h2>
+
+                <div class="form-group balance-input">
+                    <label for="rrspBalance">RRSP / LIRA</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="rrspBalance" class="currency-format" value="100000" data-type="currency">
+                    </div>
+                </div>
+
+                <div class="form-group balance-input">
+                    <label for="tfsaBalance">TFSA</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="tfsaBalance" class="currency-format" value="50000" data-type="currency">
+                    </div>
+                </div>
+
+                <div class="form-group balance-input">
+                    <label for="nonRegBalance">Non-Registered</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="nonRegBalance" class="currency-format" value="20000"
+                            data-type="currency">
+                    </div>
+                </div>
+
+                <div class="form-group balance-input">
+                    <label for="nonRegCostBasis">Non-Registered Cost Basis</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="nonRegCostBasis" class="currency-format" value="16000"
+                            data-type="currency">
+                    </div>
+                    <small class="help-text">Your initial principal to calculate capital gains properly</small>
+                </div>
+
+                <div class="divider"></div>
+                <h2>Future Plans</h2>
+
+                <div class="form-group balance-input">
+                    <label for="annualSavingsRRSP">Annual Savings: RRSP</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="annualSavingsRRSP" class="currency-format" value="6000"
+                            data-type="currency">
+                    </div>
+                </div>
+
+                <div class="form-group balance-input">
+                    <label for="annualSavingsTFSA">Annual Savings: TFSA</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="annualSavingsTFSA" class="currency-format" value="7000"
+                            data-type="currency">
+                    </div>
+                </div>
+
+                <div class="form-group balance-input">
+                    <label for="annualSavingsNonReg">Annual Savings: Non-Reg</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="annualSavingsNonReg" class="currency-format" value="3000"
+                            data-type="currency">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="annualSpend">Target Annual Spend (After Tax)</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="annualSpend" class="currency-format" value="60000" data-type="currency">
+                    </div>
+                    <small class="help-text">How much in-pocket cash you need per year in retirement</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="expectedReturn">Expected Total Annual Return (%)</label>
+                    <div class="input-with-icon">
+                        <input type="number" id="expectedReturn" value="6.0" step="0.1" min="0" max="20">
+                        <span class="percent-icon">%</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="dividendYield">Non-Registered Dividend Yield (%)</label>
+                    <div class="input-with-icon">
+                        <input type="number" id="dividendYield" value="3.0" step="0.1" min="0" max="20">
+                        <span class="percent-icon">%</span>
+                    </div>
+                    <small class="help-text">Assumes Canadian Eligible Dividends</small>
+                </div>
+
+
+
+                <div class="button-group">
+                    <button id="calculateBtn" class="primary-btn">Calculate Projection</button>
+                    <button id="resetBtn" class="secondary-btn">Reset to Defaults</button>
+                </div>
+            </section>
+
+            <!-- RESULTS SECTION -->
+            <section class="panel results-panel">
+                <div class="summary-cards">
+                    <div class="card">
+                        <span class="card-title">Projected Portfolio at Retirement</span>
+                        <h3 id="projectedTotal" class="card-value">--</h3>
+                    </div>
+                    <div class="card status-card" id="successCard">
+                        <span class="card-title">Retirement Outlook</span>
+                        <h3 id="planStatus" class="card-value">--</h3>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Portfolio Balance Over Time</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="balanceChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Retirement Cashflow & Taxes</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="cashflowChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- DATA TABLE SECTION -->
+        <section class="panel table-panel">
+            <h2>Year-by-Year Breakdown</h2>
+            <div class="table-responsive">
+                <table id="dataTable">
+                    <thead>
+                        <tr>
+                            <th>Age</th>
+                            <th>Total Balance</th>
+                            <th>RRSP</th>
+                            <th>TFSA</th>
+                            <th>Non-Reg</th>
+                            <th>Dividends</th>
+                            <th>RRSP Draw</th>
+                            <th>TFSA Draw</th>
+                            <th>Non-Reg Draw</th>
+                            <th>Taxes Paid</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
