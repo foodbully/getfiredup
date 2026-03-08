@@ -165,7 +165,7 @@
                 <div class="form-group">
                     <label for="drawdownStrategy">Drawdown Priority</label>
                     <select id="drawdownStrategy" class="select-input">
-                        <option value="nonRegFirst">Non-Reg First (Tax-Efficient)</option>
+                        <option value="nonRegFirst">Non-Reg First</option>
                         <option value="rrspFirst">RRSP First (Melt Down)</option>
                     </select>
                     <small class="help-text">Choose which account to deplete first in retirement</small>
@@ -188,6 +188,7 @@
                     <div class="card status-card" id="successCard">
                         <span class="card-title">Retirement Outlook</span>
                         <h3 id="planStatus" class="card-value">--</h3>
+                        <p id="fundingDuration" class="card-subtitle hidden"></p>
                     </div>
                 </div>
 
@@ -202,6 +203,17 @@
                     <h3>Retirement Cashflow & Taxes</h3>
                     <div class="canvas-wrapper">
                         <canvas id="cashflowChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="summary-cards" style="margin-top: 1.5rem;">
+                    <div class="card tax-card">
+                        <span class="card-title">Total Taxes Paid (Retirement)</span>
+                        <h3 id="totalTaxesPaid" class="card-value">--</h3>
+                    </div>
+                    <div class="card legacy-card">
+                        <span class="card-title">Projected Estate (Legacy Value)</span>
+                        <h3 id="legacyValue" class="card-value">--</h3>
                     </div>
                 </div>
             </section>
