@@ -14,21 +14,59 @@ const FED_BRACKETS_2024 = [
     { upTo: Infinity, rate: 0.33 }
 ];
 
-const ONT_BRACKETS_2024 = [
-    { upTo: 49231, rate: 0.0505 },
-    { upTo: 98463, rate: 0.0915 },
-    { upTo: 150000, rate: 0.1116 },
-    { upTo: 220000, rate: 0.1216 },
-    { upTo: Infinity, rate: 0.1316 }
-];
-
-// Basic Personal Amounts (roughly simplified to reduce initial taxable income to 0)
-const FED_BPA_2024 = 15705;
-const ONT_BPA_2024 = 12399;
+const PROVINCIAL_TAX_DATA = {
+    AB: {
+        name: "Alberta",
+        bpa: 21885,
+        dtcRate: 0.1013,
+        brackets: [
+            { upTo: 148269, rate: 0.10 },
+            { upTo: 177922, rate: 0.12 },
+            { upTo: 237230, rate: 0.13 },
+            { upTo: 355845, rate: 0.14 },
+            { upTo: Infinity, rate: 0.15 }
+        ]
+    },
+    BC: {
+        name: "British Columbia",
+        bpa: 12580,
+        dtcRate: 0.12,
+        brackets: [
+            { upTo: 47937, rate: 0.0506 },
+            { upTo: 95875, rate: 0.0770 },
+            { upTo: 110076, rate: 0.1050 },
+            { upTo: 133664, rate: 0.1229 },
+            { upTo: 181232, rate: 0.1470 },
+            { upTo: 252752, rate: 0.1680 },
+            { upTo: Infinity, rate: 0.2050 }
+        ]
+    },
+    SK: {
+        name: "Saskatchewan",
+        bpa: 18491,
+        dtcRate: 0.11,
+        brackets: [
+            { upTo: 52057, rate: 0.1050 },
+            { upTo: 148734, rate: 0.1250 },
+            { upTo: Infinity, rate: 0.1450 }
+        ]
+    },
+    ON: {
+        name: "Ontario",
+        bpa: 12399,
+        dtcRate: 0.10,
+        brackets: [
+            { upTo: 49231, rate: 0.0505 },
+            { upTo: 98463, rate: 0.0915 },
+            { upTo: 150000, rate: 0.1116 },
+            { upTo: 220000, rate: 0.1216 },
+            { upTo: Infinity, rate: 0.1316 }
+        ]
+    }
+};
 
 const ELIGIBLE_DIVIDEND_GROSS_UP = 1.38;
-const FED_DIVIDEND_TAX_CREDIT_RATE = 0.150198; // 15.0198% of grossed up amount
-const ONT_DIVIDEND_TAX_CREDIT_RATE = 0.10; // 10% of grossed up amount
+const FED_DIVIDEND_TAX_CREDIT_RATE = 0.150198;
 const CAPITAL_GAINS_INCLUSION_RATE = 0.5;
 
 // ==========================================
@@ -70,7 +108,9 @@ function calculateOntarioSurtax(baseOntarioTax) {
     return surtax;
 }
 
-function calculateTotalTax(regularIncome, capitalGains, actualEligibleDividends) {
+function calculateTotalTax(regularIncome, capitalGains, actualEligibleDividends, provinceCode = 'AB') {
+    const prov = PROVINCIAL_TAX_DATA[provinceCode] || PROVINCIAL_TAX_DATA.AB;
+
     // 1. Calculate Grossed Up Income
     const grossedUpDividends = actualEligibleDividends * ELIGIBLE_DIVIDEND_GROSS_UP;
     const taxableCapitalGains = capitalGains * CAPITAL_GAINS_INCLUSION_RATE;
@@ -78,29 +118,30 @@ function calculateTotalTax(regularIncome, capitalGains, actualEligibleDividends)
 
     // 2. Base Taxes
     const fedTaxBase = calculateTaxBracketOwed(totalTaxableIncome, FED_BRACKETS_2024);
-    const ontTaxBase = calculateTaxBracketOwed(totalTaxableIncome, ONT_BRACKETS_2024);
+    const provTaxBase = calculateTaxBracketOwed(totalTaxableIncome, prov.brackets);
 
     // 3. Non-Refundable Tax Credits (BPA + Dividend Tax Credits)
-    const fedBpaCredit = FED_BPA_2024 * FED_BRACKETS_2024[0].rate;
-    const ontBpaCredit = ONT_BPA_2024 * ONT_BRACKETS_2024[0].rate;
+    const fedBpaCredit = 15705 * FED_BRACKETS_2024[0].rate;
+    const provBpaCredit = prov.bpa * prov.brackets[0].rate;
 
     const fedDtc = grossedUpDividends * FED_DIVIDEND_TAX_CREDIT_RATE;
-    const ontDtc = grossedUpDividends * ONT_DIVIDEND_TAX_CREDIT_RATE;
+    const provDtc = grossedUpDividends * prov.dtcRate;
 
     const fedTaxAfterCredits = Math.max(0, fedTaxBase - fedBpaCredit - fedDtc);
-    const ontTaxAfterCredits = Math.max(0, ontTaxBase - ontBpaCredit - ontDtc);
+    const provTaxAfterCredits = Math.max(0, provTaxBase - provBpaCredit - provDtc);
 
-    // 4. Ontario Surtax
-    const ontSurtax = calculateOntarioSurtax(ontTaxAfterCredits);
+    // 4. Ontario Surtax (Special case)
+    let ontSurtax = 0;
+    if (provinceCode === 'ON') {
+        ontSurtax = calculateOntarioSurtax(provTaxAfterCredits);
+    }
 
-    // We omit Ontario Health Premium for simplicity, but could add it later
-
-    return fedTaxAfterCredits + ontTaxAfterCredits + ontSurtax;
+    return fedTaxAfterCredits + provTaxAfterCredits + ontSurtax;
 }
 
 
 // Estimates the gross amount needed to withdraw from a fully taxable source to hit a target net amount.
-function calculateGrossNeededForNetRegularIncome(targetNet, currentRegularIncome, currentCapGains, currentDivs) {
+function calculateGrossNeededForNetRegularIncome(targetNet, currentRegularIncome, currentCapGains, currentDivs, provinceCode) {
     if (targetNet <= 0) return 0;
 
     let low = targetNet;
@@ -109,8 +150,8 @@ function calculateGrossNeededForNetRegularIncome(targetNet, currentRegularIncome
 
     for (let i = 0; i < 20; i++) {
         const midGross = (low + high) / 2;
-        const totalTax = calculateTotalTax(currentRegularIncome + midGross, currentCapGains, currentDivs);
-        const baseTax = calculateTotalTax(currentRegularIncome, currentCapGains, currentDivs);
+        const totalTax = calculateTotalTax(currentRegularIncome + midGross, currentCapGains, currentDivs, provinceCode);
+        const baseTax = calculateTotalTax(currentRegularIncome, currentCapGains, currentDivs, provinceCode);
         const marginalTaxPaid = totalTax - baseTax;
 
         const netYield = midGross - marginalTaxPaid;
@@ -204,96 +245,95 @@ function runSimulation(inputs) {
             let currentEligibleDivs = 0;
             let currentTaxesPaid = 0;
 
-            // STRATEGY 1: Non-Reg Eligible Dividends Paid as Cashflow
-            if (nonRegBalance > 0 && divYieldRate > 0) {
-                const actualDividends = nonRegBalance * divYieldRate;
-                currentEligibleDivs += actualDividends;
-
-                // Calculate tax on just the dividends
-                const taxOnDivs = calculateTotalTax(0, 0, currentEligibleDivs);
-                currentTaxesPaid = taxOnDivs;
-
-                const netYield = actualDividends - taxOnDivs;
-                yearData.dividendIncome = actualDividends;
-                yearData.taxPaid = taxOnDivs;
-                yearData.netIncome += netYield;
-
-                remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
-            }
-
-            // STRATEGY 2: Non-Reg Drawdown (Principal + Capital Gains)
-            if (remainingSpendNeeded > 0 && nonRegBalance > 0) {
-                const ratioUnrealizedGains = Math.max(0, (nonRegBalance - nonRegCostBasis) / nonRegBalance);
-
-                let low = remainingSpendNeeded;
-                let high = remainingSpendNeeded * 1.5;
-                let bestGross = remainingSpendNeeded;
-                let actualCapitalGain = 0;
-
-                for (let i = 0; i < 15; i++) {
-                    const midGross = (low + high) / 2;
-                    const gainPortion = midGross * ratioUnrealizedGains;
-
-                    const totalTax = calculateTotalTax(currentRegularIncome, currentCapGains + gainPortion, currentEligibleDivs);
-                    const marginalTax = totalTax - currentTaxesPaid;
-
-                    const netYield = midGross - marginalTax;
-                    if (Math.abs(netYield - remainingSpendNeeded) < 0.5) {
-                        bestGross = midGross;
-                        actualCapitalGain = gainPortion;
-                        break;
-                    }
-                    if (netYield < remainingSpendNeeded) low = midGross;
-                    else high = midGross;
+            // MODULAR DRAWDOWN STEPS
+            const stepNonRegDividends = () => {
+                if (nonRegBalance > 0 && divYieldRate > 0) {
+                    const actualDividends = nonRegBalance * divYieldRate;
+                    currentEligibleDivs += actualDividends;
+                    const taxOnDivs = calculateTotalTax(0, 0, currentEligibleDivs, inputs.province);
+                    currentTaxesPaid = taxOnDivs;
+                    const netYield = actualDividends - taxOnDivs;
+                    yearData.dividendIncome = actualDividends;
+                    yearData.taxPaid = taxOnDivs;
+                    yearData.netIncome += netYield;
+                    remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
                 }
+            };
 
-                const nrWithdrawal = Math.min(nonRegBalance, bestGross);
-                const actualGain = nrWithdrawal * ratioUnrealizedGains;
+            const stepNonRegDrawdown = () => {
+                if (remainingSpendNeeded > 0 && nonRegBalance > 0) {
+                    const ratioUnrealizedGains = Math.max(0, (nonRegBalance - nonRegCostBasis) / nonRegBalance);
+                    let low = remainingSpendNeeded;
+                    let high = remainingSpendNeeded * 1.5;
+                    let bestGross = remainingSpendNeeded;
+                    for (let i = 0; i < 15; i++) {
+                        const midGross = (low + high) / 2;
+                        const gainPortion = midGross * ratioUnrealizedGains;
+                        const totalTax = calculateTotalTax(currentRegularIncome, currentCapGains + gainPortion, currentEligibleDivs, inputs.province);
+                        const netYield = midGross - (totalTax - currentTaxesPaid);
+                        if (Math.abs(netYield - remainingSpendNeeded) < 0.5) {
+                            bestGross = midGross;
+                            break;
+                        }
+                        if (netYield < remainingSpendNeeded) low = midGross;
+                        else high = midGross;
+                    }
+                    const nrWithdrawal = Math.min(nonRegBalance, bestGross);
+                    const actualGain = nrWithdrawal * ratioUnrealizedGains;
+                    const taxTot = calculateTotalTax(currentRegularIncome, currentCapGains + actualGain, currentEligibleDivs, inputs.province);
+                    const marginalTax = taxTot - currentTaxesPaid;
+                    nonRegBalance -= nrWithdrawal;
+                    nonRegCostBasis -= (nrWithdrawal - actualGain);
+                    nonRegCostBasis = Math.max(0, nonRegCostBasis);
+                    yearData.withdrawalNonReg = nrWithdrawal;
+                    currentCapGains += actualGain;
+                    currentTaxesPaid = taxTot;
+                    yearData.taxPaid = taxTot;
+                    const netYield = nrWithdrawal - marginalTax;
+                    remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
+                    yearData.netIncome += netYield;
+                }
+            };
 
-                const taxTot = calculateTotalTax(currentRegularIncome, currentCapGains + actualGain, currentEligibleDivs);
-                const marginalTax = taxTot - currentTaxesPaid;
+            const stepTFSA = () => {
+                if (remainingSpendNeeded > 0 && tfsaBalance > 0) {
+                    const tfsaWithdrawal = Math.min(tfsaBalance, remainingSpendNeeded);
+                    tfsaBalance -= tfsaWithdrawal;
+                    yearData.withdrawalTFSA = tfsaWithdrawal;
+                    remainingSpendNeeded -= tfsaWithdrawal;
+                    yearData.netIncome += tfsaWithdrawal;
+                }
+            };
 
-                nonRegBalance -= nrWithdrawal;
-                nonRegCostBasis -= (nrWithdrawal - actualGain);
-                nonRegCostBasis = Math.max(0, nonRegCostBasis);
+            const stepRRSP = () => {
+                if (remainingSpendNeeded > 0 && rrspBalance > 0) {
+                    const addlGrossNeeded = calculateGrossNeededForNetRegularIncome(remainingSpendNeeded, currentRegularIncome, currentCapGains, currentEligibleDivs, inputs.province);
+                    const rrspWithdrawal = Math.min(rrspBalance, addlGrossNeeded);
+                    const taxTot = calculateTotalTax(currentRegularIncome + rrspWithdrawal, currentCapGains, currentEligibleDivs, inputs.province);
+                    const marginalTax = taxTot - currentTaxesPaid;
+                    rrspBalance -= rrspWithdrawal;
+                    yearData.withdrawalRRSP += rrspWithdrawal;
+                    currentRegularIncome += rrspWithdrawal;
+                    currentTaxesPaid = taxTot;
+                    yearData.taxPaid = taxTot;
+                    const netYield = rrspWithdrawal - marginalTax;
+                    remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
+                    yearData.netIncome += netYield;
+                }
+            };
 
-                yearData.withdrawalNonReg = nrWithdrawal;
-                currentCapGains += actualGain;
-                currentTaxesPaid = taxTot;
-                yearData.taxPaid = taxTot;
+            // EXECUTE BASED ON STRATEGY
+            stepNonRegDividends();
 
-                const netYield = nrWithdrawal - marginalTax;
-                remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
-                yearData.netIncome += netYield;
-            }
-
-            // STRATEGY 3: TFSA (Tax free fallback)
-            if (remainingSpendNeeded > 0 && tfsaBalance > 0) {
-                const tfsaWithdrawal = Math.min(tfsaBalance, remainingSpendNeeded);
-                tfsaBalance -= tfsaWithdrawal;
-                yearData.withdrawalTFSA = tfsaWithdrawal;
-                remainingSpendNeeded -= tfsaWithdrawal;
-                yearData.netIncome += tfsaWithdrawal;
-            }
-
-            // STRATEGY 4: RRSP (Fully taxable)
-            if (remainingSpendNeeded > 0 && rrspBalance > 0) {
-                const addlGrossNeeded = calculateGrossNeededForNetRegularIncome(remainingSpendNeeded, currentRegularIncome, currentCapGains, currentEligibleDivs);
-                const rrspWithdrawal = Math.min(rrspBalance, addlGrossNeeded);
-
-                const taxTot = calculateTotalTax(currentRegularIncome + rrspWithdrawal, currentCapGains, currentEligibleDivs);
-                const marginalTax = taxTot - currentTaxesPaid;
-
-                rrspBalance -= rrspWithdrawal;
-                yearData.withdrawalRRSP += rrspWithdrawal;
-
-                currentRegularIncome += rrspWithdrawal;
-                currentTaxesPaid = taxTot;
-                yearData.taxPaid = taxTot;
-
-                const netYield = rrspWithdrawal - marginalTax;
-                remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
-                yearData.netIncome += netYield;
+            if (inputs.drawdownStrategy === 'rrspFirst') {
+                stepRRSP();
+                stepNonRegDrawdown();
+                stepTFSA();
+            } else {
+                // Default: Non-Reg First
+                stepNonRegDrawdown();
+                stepTFSA();
+                stepRRSP();
             }
 
             // Track Shortfall
@@ -377,7 +417,9 @@ function getInputs() {
         annualSavingsNonReg: parseCurrency(document.getElementById('annualSavingsNonReg').value),
         annualSpend: parseCurrency(document.getElementById('annualSpend').value),
         expectedReturn: isNaN(parseFloat(document.getElementById('expectedReturn').value)) ? 6.0 : parseFloat(document.getElementById('expectedReturn').value),
-        dividendYield: isNaN(parseFloat(document.getElementById('dividendYield').value)) ? 3.0 : parseFloat(document.getElementById('dividendYield').value)
+        dividendYield: isNaN(parseFloat(document.getElementById('dividendYield').value)) ? 3.0 : parseFloat(document.getElementById('dividendYield').value),
+        drawdownStrategy: document.getElementById('drawdownStrategy').value || 'nonRegFirst',
+        province: document.getElementById('province').value || 'AB'
     };
 }
 
@@ -410,6 +452,9 @@ function loadInputsFromStorage() {
 
         document.getElementById('expectedReturn').value = inputs.expectedReturn;
         document.getElementById('dividendYield').value = inputs.dividendYield;
+
+        if (inputs.drawdownStrategy) document.getElementById('drawdownStrategy').value = inputs.drawdownStrategy;
+        if (inputs.province) document.getElementById('province').value = inputs.province;
 
         return true;
     } catch (e) {
@@ -648,10 +693,13 @@ document.getElementById('calculateBtn').addEventListener('click', handleCalculat
 document.getElementById('resetBtn').addEventListener('click', resetToDefaults);
 
 // Auto-calculate on input change
-document.querySelectorAll('input').forEach(input => {
+document.querySelectorAll('input, select').forEach(input => {
     // Only calculate on 'blur' (when the user clicks away) to prevent aggressive 
     // validation alerts while they are mid-typing (e.g. typing "48" stopping at "4")
     input.addEventListener('blur', handleCalculate);
+    if (input.tagName === 'SELECT') {
+        input.addEventListener('change', handleCalculate);
+    }
 });
 
 // Initial run

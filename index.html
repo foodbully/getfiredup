@@ -38,6 +38,25 @@
                 <h2>Your Details</h2>
 
                 <div class="form-group">
+                    <label for="province">Province of Residence</label>
+                    <select id="province" class="select-input">
+                        <option value="AB" selected>Alberta</option>
+                        <option value="BC">British Columbia</option>
+                        <option value="SK">Saskatchewan</option>
+                        <option value="ON">Ontario</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="annualSpend">Target Annual Spend (After Tax)</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="annualSpend" class="currency-format" value="60000" data-type="currency">
+                    </div>
+                    <small class="help-text">How much in-pocket cash you need per year in retirement</small>
+                </div>
+
+                <div class="form-group">
                     <label for="currentAge">Current Age</label>
                     <input type="number" id="currentAge" value="35" min="18" max="100">
                 </div>
@@ -122,14 +141,7 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="annualSpend">Target Annual Spend (After Tax)</label>
-                    <div class="input-with-icon">
-                        <span class="currency-icon">$</span>
-                        <input type="text" id="annualSpend" class="currency-format" value="60000" data-type="currency">
-                    </div>
-                    <small class="help-text">How much in-pocket cash you need per year in retirement</small>
-                </div>
+
 
                 <div class="form-group">
                     <label for="expectedReturn">Expected Total Annual Return (%)</label>
@@ -147,9 +159,19 @@
                     </div>
                     <small class="help-text">Assumes Canadian Eligible Dividends</small>
                 </div>
+                <div class="divider"></div>
+                <h2>Advanced Strategy</h2>
 
+                <div class="form-group">
+                    <label for="drawdownStrategy">Drawdown Priority</label>
+                    <select id="drawdownStrategy" class="select-input">
+                        <option value="nonRegFirst">Non-Reg First (Tax-Efficient)</option>
+                        <option value="rrspFirst">RRSP First (Melt Down)</option>
+                    </select>
+                    <small class="help-text">Choose which account to deplete first in retirement</small>
+                </div>
 
-
+                <div id="errorBanner" class="error-banner hidden"></div>
                 <div class="button-group">
                     <button id="calculateBtn" class="primary-btn">Calculate Projection</button>
                     <button id="resetBtn" class="secondary-btn">Reset to Defaults</button>
