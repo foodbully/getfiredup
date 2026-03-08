@@ -10,7 +10,13 @@ const FED_BRACKETS_2024 = [
     { upTo: Infinity, rate: 0.33 }
 ];
 
-const TAX_BRACKETS_AB = []
+const PROVINCIAL_TAX_DATA_TEST = {
+    AB: {
+        bracket: [21885, 148269, 177922, 237230, 355845, Infinity],
+        rate: [0, 0.10, 0.12, 0.13, 0.14, 0.15],
+        dtcRate: 0.1013
+    }
+}
 
 const PROVINCIAL_TAX_DATA = {
     AB: {
@@ -66,6 +72,7 @@ const PROVINCIAL_TAX_DATA = {
 const ELIGIBLE_DIVIDEND_GROSS_UP = 1.38;
 const FED_DIVIDEND_TAX_CREDIT_RATE = 0.150198;
 const CAPITAL_GAINS_INCLUSION_RATE = 0.5;
+const MEDICAL_EXPENSE_INCOME_THRESHOLD = 2834;
 
 
 // ============================
@@ -78,33 +85,62 @@ function calculateRRIFMinimumRate(age) {
 }
 
 
-function calculateDividendTaxCredit(dividend) {
+function calcDividendCredit(dividend) {
     return dividend * ELIGIBLE_DIVIDEND_GROSS_UP * FED_DIVIDEND_TAX_CREDIT_RATE;
 }
 
 
-function calculateMedicalExpenseTaxCredit(taxableIncome, medicalExpense) {
+function calcMedicalCredit(taxableIncome, medicalExpense) {
     return;
 }
 
 
-function calculateEligiblePensionTaxCredit(age, eligiblePension) {
+function calcPensionCredit(age, eligiblePension) {
+    return;
+}
+
+function calcAgeCredit(age, taxableIncome) {
+    return;
+}
+
+function calcTaxCredit(age, taxableIncome, dividend, eligiblePension, medicalExpense) {
+
+    ageCredit = calcAgeCredit(age, taxableIncome);
+    dividendCredit = calcDividendCredit(dividend);
+    pensionCredit = calcPensionCredit(age, eligiblePension);
+    medicalCredit = calcMedicalCredit(taxableIncome, medicalExpense);
+
+    taxCredit = ageCredit + dividendCredit + pensionCredit + medicalCredit;
+    
+    return taxCredit;
+}
+
+
+function calcTax(taxableIncome) {
     return;
 }
 
 
-function calculateTaxCredits(age, taxableIncome, dividend, eligiblePension, medicalExpense) {
-    return;
-}
+function calcNetIncome(age, cpp, oas, rrif, pension, rrsp, dividend, nonreg, tfsa, medicalExpense) {
 
+    // income
+    grossIncome = cpp + oas + rrif + pension + rrsp + dividend + nonreg + tfsa;
+    taxableIncome = cpp + oas + rrif + pension + rrsp + dividend * ELIGIBLE_DIVIDEND_GROSS_UP + nonreg * CAPITAL_GAINS_INCLUSION_RATE;
+    eligiblePension = rrif + pension;
 
-function calculateTax(taxableIncome) {
-    return;
-}
+    // tax
+    tax = calcTax(taxableIncome);
 
+    // tax credits
+    taxCredit = calcTaxCredit(age, taxableIncome, dividend, eligiblePension, medicalExpense);
 
-function calculateNetIncome(age, cpp, oas, rrif, pension, dividend, rrsp, nonreg, tfsa) {
-    return;
+    // net tax
+    netTax = Math.Max(0, tax - taxCredit);
+
+    // net income
+    netIncome = grossIncome - netTax
+    
+    return netIncome;
 }
 
 
