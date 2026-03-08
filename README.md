@@ -57,3 +57,6 @@ This calculator will determine if your current and future savings will be enough
 2. Update retirement logic
 3. Update output charts
 4. Add Player 2
+5. Canadian Government Benefits
+6. Future lump sum (inheritance or house downsizing)
+7. Die with 'x' strategy
