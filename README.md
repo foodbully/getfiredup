@@ -42,12 +42,11 @@ This calculator will determine if your current and future savings will be enough
 - Retirement savings drawdown order will be: (1) RRSP, (2) Non-Reg, and (3) TFSA
 - During retirement, maxing out the TFSA will be funded by the dividends
 - Savings contribution order will be: (1) RRSP, (2) TFSA, and (3) Non-Reg
-- Dividends are considered eligible dividends for tax credit calculation purposes
-- 
+- Dividends are considered eligible for tax credit calculation purposes
 
 
 ## Tax Credits
-- Dividend (eligible)
+- Eligible Dividends
 - Pension Income 
 - Age Amount
 - Medical Expenses
