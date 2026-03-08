@@ -205,7 +205,15 @@ function runSimulation(inputs) {
 
     for (let age = currentAge; age <= lifeExpectancy; age++) {
         const isRetired = age >= retirementAge;
-        let remainingSpendNeeded = isRetired ? annualSpend : 0;
+
+        let phaseMultiplier = 1.0;
+        if (isRetired) {
+            if (age >= 85) phaseMultiplier = (inputs.noGoSpend || 100) / 100;
+            else if (age >= 75) phaseMultiplier = (inputs.slowGoSpend || 100) / 100;
+        }
+
+        const effectiveAnnualSpend = isRetired ? (annualSpend * phaseMultiplier) : 0;
+        let remainingSpendNeeded = effectiveAnnualSpend;
 
         let yearData = {
             age: age,
@@ -372,11 +380,11 @@ function runSimulation(inputs) {
             }
 
             // 3. Handle Surplus Cashflow (Reinvest into Non-Reg)
-            if (remainingSpendNeeded === 0 && yearData.netIncome > annualSpend) {
-                const surplus = yearData.netIncome - annualSpend;
+            if (remainingSpendNeeded === 0 && yearData.netIncome > effectiveAnnualSpend) {
+                const surplus = yearData.netIncome - effectiveAnnualSpend;
                 nonRegBalance += surplus;
                 nonRegCostBasis += surplus;
-                yearData.netIncome = annualSpend;
+                yearData.netIncome = effectiveAnnualSpend;
             }
 
             // Apply Capital Growth to remaining balances at end of retirement year
@@ -458,8 +466,10 @@ function getInputs() {
         annualSpend: parseCurrency(document.getElementById('annualSpend').value),
         expectedReturn: isNaN(parseFloat(document.getElementById('expectedReturn').value)) ? 6.0 : parseFloat(document.getElementById('expectedReturn').value),
         dividendYield: isNaN(parseFloat(document.getElementById('dividendYield').value)) ? 3.0 : parseFloat(document.getElementById('dividendYield').value),
-        drawdownStrategy: document.getElementById('drawdownStrategy').value || 'nonRegFirst',
-        province: document.getElementById('province').value || 'AB'
+        drawdownStrategy: document.getElementById('drawdownStrategy')?.value || 'nonRegFirst',
+        province: document.getElementById('province')?.value || 'AB',
+        slowGoSpend: parseInt(document.getElementById('slowGoSpend')?.value || '100'),
+        noGoSpend: parseInt(document.getElementById('noGoSpend')?.value || '100')
     };
 }
 
@@ -495,6 +505,15 @@ function loadInputsFromStorage() {
 
         if (inputs.drawdownStrategy) document.getElementById('drawdownStrategy').value = inputs.drawdownStrategy;
         if (inputs.province) document.getElementById('province').value = inputs.province;
+
+        if (inputs.slowGoSpend) {
+            document.getElementById('slowGoSpend').value = inputs.slowGoSpend;
+            document.getElementById('slowGoValue').textContent = inputs.slowGoSpend + '%';
+        }
+        if (inputs.noGoSpend) {
+            document.getElementById('noGoSpend').value = inputs.noGoSpend;
+            document.getElementById('noGoValue').textContent = inputs.noGoSpend + '%';
+        }
 
         return true;
     } catch (e) {
@@ -750,6 +769,16 @@ function handleCalculate() {
 // Bind events
 document.getElementById('calculateBtn').addEventListener('click', handleCalculate);
 document.getElementById('resetBtn').addEventListener('click', resetToDefaults);
+
+// Phase Sliders real-time update
+['slowGoSpend', 'noGoSpend'].forEach(id => {
+    const slider = document.getElementById(id);
+    const display = document.getElementById(id.replace('Spend', 'Value'));
+
+    slider.addEventListener('input', () => {
+        display.textContent = slider.value + '%';
+    });
+});
 
 // Auto-calculate on input change
 document.querySelectorAll('input, select').forEach(input => {

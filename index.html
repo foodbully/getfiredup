@@ -165,10 +165,27 @@
                 <div class="form-group">
                     <label for="drawdownStrategy">Drawdown Priority</label>
                     <select id="drawdownStrategy" class="select-input">
-                        <option value="nonRegFirst">Non-Reg First</option>
+                        <option value="nonRegFirst">Non-Reg First (Tax-Efficient)</option>
                         <option value="rrspFirst">RRSP First (Melt Down)</option>
                     </select>
                     <small class="help-text">Choose which account to deplete first in retirement</small>
+                </div>
+
+                <!-- Retirement Phases -->
+                <div class="form-group phase-slider-group">
+                    <div class="label-with-value">
+                        <label for="slowGoSpend">Slow-Go Spend (Ages 75-84)</label>
+                        <span id="slowGoValue" class="value-display">100%</span>
+                    </div>
+                    <input type="range" id="slowGoSpend" min="50" max="100" value="100" class="slider-input">
+                </div>
+
+                <div class="form-group phase-slider-group">
+                    <div class="label-with-value">
+                        <label for="noGoSpend">No-Go Spend (Ages 85+)</label>
+                        <span id="noGoValue" class="value-display">100%</span>
+                    </div>
+                    <input type="range" id="noGoSpend" min="50" max="100" value="100" class="slider-input">
                 </div>
 
                 <div id="errorBanner" class="error-banner hidden"></div>
