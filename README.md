@@ -19,6 +19,11 @@ This calculator will determine if your current and future savings will be enough
 - Non-Reg Balance
 - Non-Reg Adjust Cost Basis (ACB)
 
+### Future Savings
+- RRSP Amount
+- TFSA Amount
+- Non-Reg Amount
+
 ### Investment Rates
 - Return Rate
 - Dividend Rate
@@ -33,7 +38,7 @@ This calculator will determine if your current and future savings will be enough
 
 
 ## Assumptions
-- RRSP will be converted to RRIF upon retirement
+- RRSP will be converted to a RRIF upon retirement
 - Retirement savings drawdown order will be: (1) RRSP, (2) Non-Reg, and (3) TFSA
 - During retirement, maxing out the TFSA will be funded by the dividends
 - Savings contribution order will be: (1) RRSP, (2) TFSA, and (3) Non-Reg
@@ -45,9 +50,9 @@ This calculator will determine if your current and future savings will be enough
 - Age Amount
 - Medical Expenses
 
+
 ## To Do
-1. Update inputs
+1. Update input fields
 2. Update retirement logic
 3. Update output charts
 4. Add Player 2
-5. 
