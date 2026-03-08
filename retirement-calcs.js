@@ -68,6 +68,43 @@ const FED_DIVIDEND_TAX_CREDIT_RATE = 0.150198;
 const CAPITAL_GAINS_INCLUSION_RATE = 0.5;
 
 
-// =================
-// === FUNCTIONS ===
-// =================
+// ============================
+// === SUPPORTING FUNCTIONS ===
+// ============================
+
+function calculateRRIFMinimumRate(age) {
+    if (age >= 90) return 1;
+    return 1 / (90 - age);
+}
+
+
+function calculateDividendTaxCredit(dividend) {
+    return dividend * ELIGIBLE_DIVIDEND_GROSS_UP * FED_DIVIDEND_TAX_CREDIT_RATE;
+}
+
+
+function calculateMedicalExpenseTaxCredit(taxableIncome, medicalExpense) {
+    return;
+}
+
+
+function calculateEligiblePensionTaxCredit(age, eligiblePension) {
+    return;
+}
+
+
+function calculateTaxCredits(age, taxableIncome, dividend, eligiblePension, medicalExpense) {
+    return;
+}
+
+
+function calculateTax(taxableIncome) {
+    return;
+}
+
+
+function calculateNetIncome(age, cpp, oas, rrif, pension, dividend, rrsp, nonreg, tfsa) {
+    return;
+}
+
+
