@@ -663,14 +663,33 @@ function updateCharts(data, inputs) {
     const totalShortfall = retirementData.reduce((sum, d) => sum + d.shortfall, 0);
     const statusCard = document.getElementById('successCard');
     const statusText = document.getElementById('planStatus');
+    const fundingDurationText = document.getElementById('fundingDuration');
 
     if (totalShortfall > 0) {
         statusCard.className = 'card status-card status-warning';
         statusText.textContent = 'Funds Depleted Early';
+
+        // Find first age with shortfall
+        const depletionAge = retirementData.find(d => d.shortfall > 0)?.age;
+        if (depletionAge) {
+            fundingDurationText.textContent = `Savings last until Age ${depletionAge}`;
+            fundingDurationText.classList.remove('hidden');
+        } else {
+            fundingDurationText.classList.add('hidden');
+        }
     } else {
         statusCard.className = 'card status-card status-good';
         statusText.textContent = 'Fully Funded';
+        fundingDurationText.classList.add('hidden');
     }
+
+    // 4. Update Total Taxes Card
+    const totalTaxes = retirementData.reduce((sum, d) => sum + d.taxPaid, 0);
+    document.getElementById('totalTaxesPaid').textContent = formatCurrency(totalTaxes);
+
+    // 5. Update Legacy Value Card
+    const lastYear = data[data.length - 1];
+    document.getElementById('legacyValue').textContent = formatCurrency(lastYear ? lastYear.totalBalance : 0);
 }
 
 function renderTable(data) {
