@@ -97,6 +97,14 @@ function calculateTaxBracketOwed(taxableIncome, brackets) {
     return tax;
 }
 
+const RRIF_MIN_RATES = {
+    71: 0.0528, 72: 0.0540, 73: 0.0553, 74: 0.0567, 75: 0.0582,
+    76: 0.0598, 77: 0.0617, 78: 0.0636, 79: 0.0658, 80: 0.0682,
+    81: 0.0708, 82: 0.0738, 83: 0.0771, 84: 0.0808, 85: 0.0851,
+    86: 0.0899, 87: 0.0955, 88: 0.1021, 89: 0.1099, 90: 0.1192,
+    91: 0.1306, 92: 0.1449, 93: 0.1634, 94: 0.1879, 95: 0.2000
+};
+
 function calculateOntarioSurtax(baseOntarioTax) {
     let surtax = 0;
     if (baseOntarioTax > 5315) {
@@ -197,6 +205,7 @@ function runSimulation(inputs) {
 
     for (let age = currentAge; age <= lifeExpectancy; age++) {
         const isRetired = age >= retirementAge;
+        let remainingSpendNeeded = isRetired ? annualSpend : 0;
 
         let yearData = {
             age: age,
@@ -238,23 +247,49 @@ function runSimulation(inputs) {
             nonRegBalance *= (1 + totalReturnRate);
         } else {
             // 2. Process Drawdown (Retirement)
-            let remainingSpendNeeded = annualSpend;
-
             let currentRegularIncome = 0;
             let currentCapGains = 0;
             let currentEligibleDivs = 0;
             let currentTaxesPaid = 0;
+
+            // MANDATORY RRIF WITHDRAWAL (Age 71+)
+            if (age >= 71 && rrspBalance > 0) {
+                const ageKey = Math.min(95, age);
+                const minRate = RRIF_MIN_RATES[ageKey] || 0;
+                if (minRate > 0) {
+                    const mandatoryGross = rrspBalance * minRate;
+                    const rrspWithdrawal = Math.min(rrspBalance, mandatoryGross);
+
+                    // Apply to regular income
+                    const oldTax = calculateTotalTax(currentRegularIncome, currentCapGains, currentEligibleDivs, inputs.province);
+                    const newTax = calculateTotalTax(currentRegularIncome + rrspWithdrawal, currentCapGains, currentEligibleDivs, inputs.province);
+                    const marginalTax = newTax - oldTax;
+
+                    rrspBalance -= rrspWithdrawal;
+                    yearData.withdrawalRRSP += rrspWithdrawal;
+                    currentRegularIncome += rrspWithdrawal;
+                    currentTaxesPaid = newTax;
+                    yearData.taxPaid = newTax;
+
+                    const netYield = rrspWithdrawal - marginalTax;
+                    remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
+                    yearData.netIncome += netYield;
+                }
+            }
 
             // MODULAR DRAWDOWN STEPS
             const stepNonRegDividends = () => {
                 if (nonRegBalance > 0 && divYieldRate > 0) {
                     const actualDividends = nonRegBalance * divYieldRate;
                     currentEligibleDivs += actualDividends;
-                    const taxOnDivs = calculateTotalTax(0, 0, currentEligibleDivs, inputs.province);
-                    currentTaxesPaid = taxOnDivs;
-                    const netYield = actualDividends - taxOnDivs;
+
+                    const newTax = calculateTotalTax(currentRegularIncome, currentCapGains, currentEligibleDivs, inputs.province);
+                    const taxOnThisStep = newTax - currentTaxesPaid;
+                    currentTaxesPaid = newTax;
+
+                    const netYield = actualDividends - taxOnThisStep;
                     yearData.dividendIncome = actualDividends;
-                    yearData.taxPaid = taxOnDivs;
+                    yearData.taxPaid = currentTaxesPaid;
                     yearData.netIncome += netYield;
                     remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
                 }
@@ -264,7 +299,7 @@ function runSimulation(inputs) {
                 if (remainingSpendNeeded > 0 && nonRegBalance > 0) {
                     const ratioUnrealizedGains = Math.max(0, (nonRegBalance - nonRegCostBasis) / nonRegBalance);
                     let low = remainingSpendNeeded;
-                    let high = remainingSpendNeeded * 1.5;
+                    let high = remainingSpendNeeded * 2.0;
                     let bestGross = remainingSpendNeeded;
                     for (let i = 0; i < 15; i++) {
                         const midGross = (low + high) / 2;
@@ -288,7 +323,7 @@ function runSimulation(inputs) {
                     yearData.withdrawalNonReg = nrWithdrawal;
                     currentCapGains += actualGain;
                     currentTaxesPaid = taxTot;
-                    yearData.taxPaid = taxTot;
+                    yearData.taxPaid = currentTaxesPaid;
                     const netYield = nrWithdrawal - marginalTax;
                     remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
                     yearData.netIncome += netYield;
@@ -315,7 +350,7 @@ function runSimulation(inputs) {
                     yearData.withdrawalRRSP += rrspWithdrawal;
                     currentRegularIncome += rrspWithdrawal;
                     currentTaxesPaid = taxTot;
-                    yearData.taxPaid = taxTot;
+                    yearData.taxPaid = currentTaxesPaid;
                     const netYield = rrspWithdrawal - marginalTax;
                     remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
                     yearData.netIncome += netYield;
@@ -336,28 +371,33 @@ function runSimulation(inputs) {
                 stepRRSP();
             }
 
-            // Track Shortfall
-            // The simulation's binary search is accurate to $0.50, so remaining spend might be e.g. $0.20
-            // Clear floating point dust to avoid triggering "Funds Depleted" incorrectly.
-            if (remainingSpendNeeded < 1.0) remainingSpendNeeded = 0;
-            yearData.shortfall = remainingSpendNeeded;
+            // 3. Handle Surplus Cashflow (Reinvest into Non-Reg)
+            if (remainingSpendNeeded === 0 && yearData.netIncome > annualSpend) {
+                const surplus = yearData.netIncome - annualSpend;
+                nonRegBalance += surplus;
+                nonRegCostBasis += surplus;
+                yearData.netIncome = annualSpend;
+            }
 
-            // Apply Capital Growth to remaining balances
+            // Apply Capital Growth to remaining balances at end of retirement year
             rrspBalance *= (1 + totalReturnRate);
             tfsaBalance *= (1 + totalReturnRate);
             nonRegBalance *= (1 + nonRegCapitalReturnRate);
         }
 
-        yearlyData.push(yearData);
+        // Track Shortfall and enforce non-negative balances
+        if (remainingSpendNeeded < 1.0) remainingSpendNeeded = 0;
+        yearData.shortfall = remainingSpendNeeded;
 
         rrspBalance = Math.max(0, rrspBalance);
         tfsaBalance = Math.max(0, tfsaBalance);
         nonRegBalance = Math.max(0, nonRegBalance);
+
+        yearlyData.push(yearData);
     }
 
     return yearlyData;
 }
-
 
 // ==========================================
 // 3. UI, State, and Charting
