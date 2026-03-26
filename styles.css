@@ -483,3 +483,62 @@ table tbody tr:hover {
 .row-retired:hover td {
     background: rgba(34, 197, 94, 0.08);
 }
+
+/* =========================================
+   Collapsible Sections
+   ========================================= */
+.collapsible-section {
+    margin-bottom: 1.25rem;
+}
+
+.collapsible-section summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    list-style: none; /* Hide default arrow */
+    padding: 0.5rem 0;
+}
+
+.collapsible-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.collapsible-section h2 {
+    margin-bottom: 0;
+    display: flex;
+    align-items: center;
+}
+
+.toggle-icon::before {
+    content: '+';
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease;
+}
+
+.collapsible-section[open] .toggle-icon::before {
+    content: '-';
+}
+
+.collapsible-content {
+    margin-top: 1rem;
+    animation: fadeInDown 0.3s ease;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

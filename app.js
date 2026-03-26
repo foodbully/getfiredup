@@ -188,7 +188,11 @@ function runSimulation(inputs) {
         annualSavingsNonReg,
         annualSpend,
         expectedReturn,
-        dividendYield
+        dividendYield,
+        otherIncome,
+        otherIncomeEndAge,
+        lumpSumAmount,
+        lumpSumAge
     } = inputs;
 
     const totalReturnRate = expectedReturn / 100;
@@ -222,7 +226,13 @@ function runSimulation(inputs) {
             nonRegBalance: nonRegBalance,
             totalBalance: rrspBalance + tfsaBalance + nonRegBalance,
             isRetired: isRetired,
+            targetSpend: effectiveAnnualSpend,
             // Cashflow tracking
+            savingsRRSP: !isRetired ? annualSavingsRRSP : 0,
+            savingsTFSA: !isRetired ? annualSavingsTFSA : 0,
+            savingsNonReg: !isRetired ? annualSavingsNonReg : 0,
+            otherIncome: 0,
+            reinvestment: 0,
             dividendIncome: 0,
             withdrawalRRSP: 0,
             withdrawalTFSA: 0,
@@ -231,6 +241,13 @@ function runSimulation(inputs) {
             netIncome: 0,
             shortfall: 0
         };
+
+        // 0. Process specific life events (Lump Sum)
+        if (age === lumpSumAge && lumpSumAmount > 0) {
+            nonRegBalance += lumpSumAmount;
+            nonRegCostBasis += lumpSumAmount;
+            yearData.reinvestment += lumpSumAmount;
+        }
 
         // 1. Process Growth & Contributions (Start of year)
         if (!isRetired) {
@@ -286,6 +303,24 @@ function runSimulation(inputs) {
             }
 
             // MODULAR DRAWDOWN STEPS
+            const applyOtherIncome = () => {
+                if (otherIncome > 0 && age <= otherIncomeEndAge) {
+                    const actualOtherIncome = otherIncome;
+                    currentRegularIncome += actualOtherIncome;
+
+                    const newTax = calculateTotalTax(currentRegularIncome, currentCapGains, currentEligibleDivs, inputs.province);
+                    const taxOnThisStep = newTax - calculateTotalTax(currentRegularIncome - actualOtherIncome, currentCapGains, currentEligibleDivs, inputs.province);
+                    currentTaxesPaid = newTax;
+                    
+                    const netYield = actualOtherIncome - taxOnThisStep;
+                    yearData.otherIncome = actualOtherIncome;
+                    yearData.taxPaid = currentTaxesPaid;
+                    
+                    yearData.netIncome += netYield;
+                    remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
+                }
+            };
+
             const stepNonRegDividends = () => {
                 if (nonRegBalance > 0 && divYieldRate > 0) {
                     const actualDividends = nonRegBalance * divYieldRate;
@@ -365,18 +400,46 @@ function runSimulation(inputs) {
                 }
             };
 
+            const stepRRSPBracketFill = () => {
+                const BRACKET_TARGET = FED_BRACKETS_2024[0].upTo;
+                if (remainingSpendNeeded > 0 && rrspBalance > 0 && currentRegularIncome < BRACKET_TARGET) {
+                    const grossRoom = BRACKET_TARGET - currentRegularIncome;
+                    const addlGrossNeeded = calculateGrossNeededForNetRegularIncome(remainingSpendNeeded, currentRegularIncome, currentCapGains, currentEligibleDivs, inputs.province);
+                    const rrspWithdrawal = Math.min(rrspBalance, Math.min(grossRoom, addlGrossNeeded));
+                    
+                    if (rrspWithdrawal > 0) {
+                        const taxTot = calculateTotalTax(currentRegularIncome + rrspWithdrawal, currentCapGains, currentEligibleDivs, inputs.province);
+                        const marginalTax = taxTot - currentTaxesPaid;
+                        rrspBalance -= rrspWithdrawal;
+                        yearData.withdrawalRRSP += rrspWithdrawal;
+                        currentRegularIncome += rrspWithdrawal;
+                        currentTaxesPaid = taxTot;
+                        yearData.taxPaid = currentTaxesPaid;
+                        const netYield = rrspWithdrawal - marginalTax;
+                        remainingSpendNeeded = Math.max(0, remainingSpendNeeded - netYield);
+                        yearData.netIncome += netYield;
+                    }
+                }
+            };
+
             // EXECUTE BASED ON STRATEGY
+            applyOtherIncome();
             stepNonRegDividends();
 
             if (inputs.drawdownStrategy === 'rrspFirst') {
                 stepRRSP();
                 stepNonRegDrawdown();
                 stepTFSA();
+            } else if (inputs.drawdownStrategy === 'tfsaLast') {
+                stepNonRegDrawdown();
+                stepRRSP();
+                stepTFSA();
             } else {
-                // Default: Non-Reg First
+                // Default: Bracket-Filler (Optimal Smoothing)
+                stepRRSPBracketFill();
                 stepNonRegDrawdown();
                 stepTFSA();
-                stepRRSP();
+                stepRRSP(); // Draw any remaining needs from RRSP if other accounts are depleted
             }
 
             // 3. Handle Surplus Cashflow (Reinvest into Non-Reg)
@@ -385,6 +448,7 @@ function runSimulation(inputs) {
                 nonRegBalance += surplus;
                 nonRegCostBasis += surplus;
                 yearData.netIncome = effectiveAnnualSpend;
+                yearData.reinvestment += surplus;
             }
 
             // Apply Capital Growth to remaining balances at end of retirement year
@@ -411,8 +475,36 @@ function runSimulation(inputs) {
 // 3. UI, State, and Charting
 // ==========================================
 
+function findOptimalSpend(originalInputs) {
+    const simInputs = { ...originalInputs };
+    const targetDieWithX = simInputs.dieWithX || 0;
+    
+    let low = 0;
+    let high = 2000000; // 2 million a year max
+    let bestSpend = 0;
+    
+    for (let i = 0; i < 35; i++) { // Binary search precision
+        const midSpend = (low + high) / 2;
+        simInputs.annualSpend = midSpend;
+        const data = runSimulation(simInputs);
+        const lastYear = data[data.length - 1];
+        
+        const hasShortfall = data.some(d => d.shortfall > 0);
+        
+        if (hasShortfall || lastYear.totalBalance < targetDieWithX) {
+            high = midSpend;
+        } else {
+            bestSpend = midSpend;
+            low = midSpend;
+        }
+    }
+    
+    return bestSpend;
+}
+
 let balanceChartInstance = null;
 let cashflowChartInstance = null;
+let reinvestChartInstance = null;
 
 const THEME_COLORS = {
     rrsp: '#3b82f6',
@@ -420,7 +512,8 @@ const THEME_COLORS = {
     nonReg: '#8b5cf6',
     tax: '#f43f5e',
     shortfall: '#ef4444',
-    dividend: '#fbbf24' // amber 400 for dividends
+    dividend: '#fbbf24', // amber 400 for dividends
+    income: '#22c55e'
 };
 
 function parseCurrency(val) {
@@ -466,10 +559,15 @@ function getInputs() {
         annualSpend: parseCurrency(document.getElementById('annualSpend').value),
         expectedReturn: isNaN(parseFloat(document.getElementById('expectedReturn').value)) ? 6.0 : parseFloat(document.getElementById('expectedReturn').value),
         dividendYield: isNaN(parseFloat(document.getElementById('dividendYield').value)) ? 3.0 : parseFloat(document.getElementById('dividendYield').value),
-        drawdownStrategy: document.getElementById('drawdownStrategy')?.value || 'nonRegFirst',
+        otherIncome: parseCurrency(document.getElementById('otherIncome').value),
+        otherIncomeEndAge: parseInt(document.getElementById('otherIncomeEndAge').value) || 100,
+        lumpSumAmount: parseCurrency(document.getElementById('lumpSumAmount').value),
+        lumpSumAge: parseInt(document.getElementById('lumpSumAge').value) || 65,
+        drawdownStrategy: document.getElementById('drawdownStrategy')?.value || 'bracketFiller',
         province: document.getElementById('province')?.value || 'AB',
         slowGoSpend: parseInt(document.getElementById('slowGoSpend')?.value || '100'),
-        noGoSpend: parseInt(document.getElementById('noGoSpend')?.value || '100')
+        noGoSpend: parseInt(document.getElementById('noGoSpend')?.value || '100'),
+        dieWithX: parseCurrency(document.getElementById('dieWithX')?.value || '0')
     };
 }
 
@@ -500,6 +598,11 @@ function loadInputsFromStorage() {
         document.getElementById('annualSavingsNonReg').value = formatCurrency(inputs.annualSavingsNonReg);
         document.getElementById('annualSpend').value = formatCurrency(inputs.annualSpend);
 
+        if (inputs.otherIncome !== undefined) document.getElementById('otherIncome').value = formatCurrency(inputs.otherIncome);
+        if (inputs.otherIncomeEndAge !== undefined) document.getElementById('otherIncomeEndAge').value = inputs.otherIncomeEndAge;
+        if (inputs.lumpSumAmount !== undefined) document.getElementById('lumpSumAmount').value = formatCurrency(inputs.lumpSumAmount);
+        if (inputs.lumpSumAge !== undefined) document.getElementById('lumpSumAge').value = inputs.lumpSumAge;
+
         document.getElementById('expectedReturn').value = inputs.expectedReturn;
         document.getElementById('dividendYield').value = inputs.dividendYield;
 
@@ -513,6 +616,10 @@ function loadInputsFromStorage() {
         if (inputs.noGoSpend) {
             document.getElementById('noGoSpend').value = inputs.noGoSpend;
             document.getElementById('noGoValue').textContent = inputs.noGoSpend + '%';
+        }
+        if (inputs.dieWithX !== undefined) {
+             const dwxEl = document.getElementById('dieWithX');
+             if (dwxEl) dwxEl.value = formatCurrency(inputs.dieWithX);
         }
 
         return true;
@@ -611,6 +718,21 @@ function updateCharts(data, inputs) {
             labels: retLabels,
             datasets: [
                 {
+                    type: 'line',
+                    label: 'Target Annual Spend (After Tax)',
+                    data: retirementData.map(d => d.targetSpend),
+                    borderColor: '#06b6d4', // cyan 500
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.3,
+                    stack: 'TargetStack'
+                },
+                {
+                    label: 'Other Income',
+                    data: retirementData.map(d => d.otherIncome),
+                    backgroundColor: THEME_COLORS.income,
+                },
+                {
                     label: 'Eligible Dividends',
                     data: retirementData.map(d => d.dividendIncome),
                     backgroundColor: THEME_COLORS.dividend,
@@ -673,6 +795,69 @@ function updateCharts(data, inputs) {
         }
     });
 
+    // New: Reinvestments & Windfalls Chart (Bar)
+    const ctxReinvest = document.getElementById('reinvestChart').getContext('2d');
+    if (reinvestChartInstance) reinvestChartInstance.destroy();
+
+    reinvestChartInstance = new Chart(ctxReinvest, {
+        type: 'bar',
+        data: {
+            labels: labels, // use full labels list because lump sums can be pre-retirement
+            datasets: [
+                {
+                    label: 'RRSP Contributions',
+                    data: data.map(d => d.savingsRRSP),
+                    backgroundColor: THEME_COLORS.rrsp, 
+                },
+                {
+                    label: 'TFSA Contributions',
+                    data: data.map(d => d.savingsTFSA),
+                    backgroundColor: THEME_COLORS.tfsa, 
+                },
+                {
+                    label: 'Non-Reg Contributions',
+                    data: data.map(d => d.savingsNonReg),
+                    backgroundColor: THEME_COLORS.nonReg, 
+                },
+                {
+                    label: 'Surplus & Windfalls',
+                    data: data.map(d => d.reinvestment),
+                    backgroundColor: '#10b981', // emerald 500
+                    borderRadius: { topLeft: 4, topRight: 4 }
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'Age', color: '#94a3b8' } },
+                y: {
+                    stacked: true,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { callback: (val) => '$' + (val / 1000) + 'k' }
+                }
+            },
+            plugins: {
+                legend: { labels: { color: '#f8fafc', font: { family: 'Inter' } } },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function (context) {
+                            let label = context.dataset.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed.y !== null) {
+                                label += new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(context.parsed.y);
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
     // 3. Update Summary Cards
     const retirementNode = data.find(d => d.age === inputs.retirementAge);
     if (retirementNode) {
@@ -683,6 +868,9 @@ function updateCharts(data, inputs) {
     const statusCard = document.getElementById('successCard');
     const statusText = document.getElementById('planStatus');
     const fundingDurationText = document.getElementById('fundingDuration');
+    const optimalLabel = document.getElementById('optimalSpendLabel');
+    
+    const optimalSpend = findOptimalSpend(inputs);
 
     if (totalShortfall > 0) {
         statusCard.className = 'card status-card status-warning';
@@ -696,10 +884,27 @@ function updateCharts(data, inputs) {
         } else {
             fundingDurationText.classList.add('hidden');
         }
+        if (optimalLabel) {
+             optimalLabel.textContent = `Current plan supports ~${formatCurrency(optimalSpend)}/yr`;
+             optimalLabel.style.color = 'var(--accent-rose)';
+        }
     } else {
         statusCard.className = 'card status-card status-good';
         statusText.textContent = 'Fully Funded';
         fundingDurationText.classList.add('hidden');
+        
+        if (optimalLabel) {
+            if (optimalSpend > inputs.annualSpend) {
+                optimalLabel.textContent = `Annual spend could increase to ~${formatCurrency(optimalSpend)}/yr`;
+                optimalLabel.style.color = 'var(--accent-green)';
+            } else if (optimalSpend < inputs.annualSpend) {
+                optimalLabel.textContent = `To hit legacy goal, spend max ~${formatCurrency(optimalSpend)}/yr`;
+                optimalLabel.style.color = 'var(--accent-rose)';
+            } else {
+                optimalLabel.textContent = `Spend perfectly balances your legacy goal!`;
+                optimalLabel.style.color = 'var(--text-secondary)';
+            }
+        }
     }
 
     // 4. Update Total Taxes Card
@@ -726,11 +931,13 @@ function renderTable(data) {
             <td style="color: ${THEME_COLORS.tfsa}">${formatCurrency(row.tfsaBalance)}</td>
             <td style="color: ${THEME_COLORS.nonReg}">${formatCurrency(row.nonRegBalance)}</td>
             
+            <td style="color: ${THEME_COLORS.income}">${row.otherIncome > 0 ? formatCurrency(row.otherIncome) : '-'}</td>
             <td style="color: ${THEME_COLORS.dividend}">${row.dividendIncome > 0 ? formatCurrency(row.dividendIncome) : '-'}</td>
             <td style="color: ${THEME_COLORS.rrsp}">${row.withdrawalRRSP > 0 ? formatCurrency(row.withdrawalRRSP) : '-'}</td>
             <td style="color: ${THEME_COLORS.tfsa}">${row.withdrawalTFSA > 0 ? formatCurrency(row.withdrawalTFSA) : '-'}</td>
             <td style="color: ${THEME_COLORS.nonReg}">${row.withdrawalNonReg > 0 ? formatCurrency(row.withdrawalNonReg) : '-'}</td>
             <td style="color: ${THEME_COLORS.tax}">${row.taxPaid > 0 ? formatCurrency(row.taxPaid) : '-'}</td>
+            <td style="color: #10b981">${row.reinvestment > 0 ? formatCurrency(row.reinvestment) : '-'}</td>
         `;
 
         tbody.appendChild(tr);

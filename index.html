@@ -159,16 +159,75 @@
                     </div>
                     <small class="help-text">Assumes Canadian Eligible Dividends</small>
                 </div>
+
                 <div class="divider"></div>
-                <h2>Advanced Strategy</h2>
+                
+                <details class="collapsible-section">
+                    <summary>
+                        <h2>Additional Income & Windfalls</h2>
+                        <span class="toggle-icon"></span>
+                    </summary>
+                    <div class="collapsible-content">
+
+                <div class="form-group balance-input">
+                    <label for="otherIncome">Other Income (Annual)</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="otherIncome" class="currency-format" value="0" data-type="currency">
+                    </div>
+                    <small class="help-text">Rental income, part-time work, etc. (Applies during retirement)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="otherIncomeEndAge">Other Income Ends at Age <span id="otherIncomeEndAgeError"
+                            class="input-error hidden"></span></label>
+                    <input type="number" id="otherIncomeEndAge" value="100" min="18" max="120">
+                    <small class="help-text">Age when this income stops</small>
+                </div>
+
+                <div class="form-group balance-input">
+                    <label for="lumpSumAmount">One-Time Lump Sum</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="lumpSumAmount" class="currency-format" value="0" data-type="currency">
+                    </div>
+                    <small class="help-text">Inheritance, property sale (Added to Non-Reg)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="lumpSumAge">Age at Lump Sum</label>
+                    <input type="number" id="lumpSumAge" value="65" min="18" max="100">
+                </div>
+                
+                    </div>
+                </details>
+
+
+                <div class="divider"></div>
+                <details class="collapsible-section">
+                    <summary>
+                        <h2>Advanced Strategy</h2>
+                        <span class="toggle-icon"></span>
+                    </summary>
+                    <div class="collapsible-content">
+
+                <div class="form-group balance-input">
+                    <label for="dieWithX">Target Legacy (Die with X)</label>
+                    <div class="input-with-icon">
+                        <span class="currency-icon">$</span>
+                        <input type="text" id="dieWithX" class="currency-format" value="0" data-type="currency">
+                    </div>
+                    <small class="help-text">Desired portfolio balance at end of life expectancy</small>
+                </div>
 
                 <div class="form-group">
                     <label for="drawdownStrategy">Drawdown Priority</label>
                     <select id="drawdownStrategy" class="select-input">
-                        <option value="nonRegFirst">Non-Reg First (Tax-Efficient)</option>
-                        <option value="rrspFirst">RRSP First (Melt Down)</option>
+                        <option value="bracketFiller" selected>Bracket-Filler (Optimal Smoothing)</option>
+                        <option value="tfsaLast">TFSA Last (Standard Efficient)</option>
+                        <option value="rrspFirst">RRSP Melt-Down</option>
                     </select>
-                    <small class="help-text">Choose which account to deplete first in retirement</small>
+                    <small class="help-text">Smart sequencing of withdrawal accounts to minimize tax</small>
                 </div>
 
                 <!-- Retirement Phases -->
@@ -187,6 +246,9 @@
                     </div>
                     <input type="range" id="noGoSpend" min="50" max="100" value="100" class="slider-input">
                 </div>
+                
+                    </div>
+                </details>
 
                 <div id="errorBanner" class="error-banner hidden"></div>
                 <div class="button-group">
@@ -206,6 +268,7 @@
                         <span class="card-title">Retirement Outlook</span>
                         <h3 id="planStatus" class="card-value">--</h3>
                         <p id="fundingDuration" class="card-subtitle hidden"></p>
+                        <p id="optimalSpendLabel" class="card-subtitle" style="font-size: 0.85rem; margin-top: 0.5rem; opacity: 0.8;"></p>
                     </div>
                 </div>
 
@@ -233,6 +296,13 @@
                         <h3 id="legacyValue" class="card-value">--</h3>
                     </div>
                 </div>
+
+                <div class="chart-container" style="margin-top: 2rem;">
+                    <h3>Total Savings & Windfalls</h3>
+                    <div class="canvas-wrapper">
+                        <canvas id="reinvestChart"></canvas>
+                    </div>
+                </div>
             </section>
 
         </main>
@@ -249,11 +319,13 @@
                             <th>RRSP</th>
                             <th>TFSA</th>
                             <th>Non-Reg</th>
+                            <th>Other Income</th>
                             <th>Dividends</th>
                             <th>RRSP Draw</th>
                             <th>TFSA Draw</th>
                             <th>Non-Reg Draw</th>
                             <th>Taxes Paid</th>
+                            <th>Reinvested/Lump</th>
                         </tr>
                     </thead>
                     <tbody>
